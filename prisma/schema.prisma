@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  SUPERVISOR
+  ASSISTANT
+  OPERATOR
+  VIEWER
+}
+
+enum DailyReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Workshop {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String
+  timezone  String            @default("Asia/Tehran")
+  members   Membership[]
+  products  ProductModel[]
+  orders    ProductionOrder[]
+}
+
+model User {
+  id            String        @id @default(uuid()) @db.Uuid
+  email         String        @unique
+  disabledAt    DateTime?     @db.Timestamptz(3)
+  accessKeyHash String?       @unique @db.Char(64)
+  memberships   Membership[]
+  sessions      AuthSession[]
+}
+
+model AuthSession {
+  tokenHash String   @id @db.Char(64)
+  userId    String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Membership {
+  workshopId String   @db.Uuid
+  userId     String   @db.Uuid
+  role       Role
+  active     Boolean  @default(true)
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Restrict)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  reports    DailyProductionReport[]
+
+  @@id([workshopId, userId])
+  @@index([userId, active])
+}
+
+model ProductModel {
+  id         String      @id @default(uuid()) @db.Uuid
+  workshopId String      @db.Uuid
+  code       String
+  name       String
+  workshop   Workshop    @relation(fields: [workshopId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@unique([workshopId, id])
+  @@unique([workshopId, code])
+}
+
+model ProductionOrder {
+  id          String                  @id @default(uuid()) @db.Uuid
+  workshopId  String                  @db.Uuid
+  orderNumber String
+  workshop    Workshop                @relation(fields: [workshopId], references: [id], onDelete: Restrict)
+  items       OrderItem[]
+  reports     DailyProductionReport[]
+
+  @@unique([workshopId, id])
+  @@unique([workshopId, orderNumber])
+}
+
+model OrderItem {
+  id         String            @id @default(uuid()) @db.Uuid
+  workshopId String            @db.Uuid
+  orderId    String            @db.Uuid
+  productId  String            @db.Uuid
+  quantity   Int
+  order      ProductionOrder   @relation(fields: [workshopId, orderId], references: [workshopId, id], onDelete: Restrict)
+  product    ProductModel      @relation(fields: [workshopId, productId], references: [workshopId, id], onDelete: Restrict)
+  batches    ProductionBatch[]
+
+  @@unique([workshopId, orderId, id])
+}
+
+model ProductionBatch {
+  id          String                  @id @default(uuid()) @db.Uuid
+  workshopId  String                  @db.Uuid
+  orderId     String                  @db.Uuid
+  orderItemId String                  @db.Uuid
+  code        String
+  plannedQty  Int
+  orderItem   OrderItem               @relation(fields: [workshopId, orderId, orderItemId], references: [workshopId, orderId, id], onDelete: Restrict)
+  reports     DailyProductionReport[]
+
+  @@unique([workshopId, orderId, id])
+  @@unique([workshopId, code])
+}
+
+model DailyProductionReport {
+  id                String            @id @default(uuid()) @db.Uuid
+  workshopId        String            @db.Uuid
+  orderId           String            @db.Uuid
+  batchId           String?           @db.Uuid
+  submittedById     String            @db.Uuid
+  submissionKey     String            @db.Uuid
+  reportDate        DateTime          @db.Date
+  goodQty           Int
+  defectiveQty      Int
+  reworkQty         Int
+  downtimeMinutes   Int
+  downtimeReason    String?           @db.VarChar(500)
+  presentCount      Int
+  scheduledCount    Int
+  status            DailyReportStatus @default(PENDING)
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  order             ProductionOrder   @relation(fields: [workshopId, orderId], references: [workshopId, id], onDelete: Restrict, onUpdate: Restrict)
+  batch             ProductionBatch?  @relation(fields: [workshopId, orderId, batchId], references: [workshopId, orderId, id], onDelete: Restrict, onUpdate: Restrict)
+  submitter         Membership        @relation(fields: [workshopId, submittedById], references: [workshopId, userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([workshopId, submissionKey])
+  @@index([workshopId, reportDate, status])
+  @@index([workshopId, orderId, batchId])
+}

@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+body {
+  background: #f5f7f5;
+  color: #182c23;
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+input:not([type="hidden"]), select, textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #687d70;
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0.6rem 0.75rem;
+}
+
+button, a {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid #32735a;
+  outline-offset: 3px;
+}
